@@ -50,11 +50,13 @@ export default function Chapter4() {
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
     const c = data[country];
+    // Null out hyperinflation-era outliers (e.g. Germany 1922-23) for readable charts
+    const clip = (v, threshold = 500) => (v != null && Math.abs(v) > threshold) ? null : v;
     return c.years.map((yr, i) => ({
       year: yr,
-      inflation: c.inflation[i],
-      short_rate: c.short_rate[i],
-      long_rate: c.long_rate[i],
+      inflation: clip(c.inflation[i]),
+      short_rate: clip(c.short_rate[i]),
+      long_rate: clip(c.long_rate[i]),
       unemployment: c.unemployment[i],
     }));
   }, [data, country]);
@@ -77,13 +79,14 @@ export default function Chapter4() {
 
   const buildCompareLines = (metricKey, metricLabel) => {
     if (!data || !compareMode || countries.length === 0) return null;
+    const clip = (v, threshold = 500) => (v != null && Math.abs(v) > threshold) ? null : v;
     return countries.map((c, i) => {
       const countryData = data[c];
       if (!countryData) return null;
       const offset = offsets[c] || 0;
       const shiftedData = countryData.years.map((yr, j) => ({
         year: yr + offset,
-        [metricKey]: countryData[metricKey][j],
+        [metricKey]: clip(countryData[metricKey][j]),
       }));
       return {
         key: metricKey,

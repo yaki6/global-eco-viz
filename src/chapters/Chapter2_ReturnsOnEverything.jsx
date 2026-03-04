@@ -49,19 +49,26 @@ export default function Chapter2() {
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
     const c = data[country];
+    // Null out hyperinflation-era outliers (e.g. Germany 1922-23) for readable charts
+    const clip = (v, threshold = 5) => (v != null && Math.abs(v) > threshold) ? null : v;
     return c.years.map((yr, i) => ({
       year: yr,
-      equity: c.equity[i],
-      housing: c.housing[i],
-      bonds: c.bonds[i],
-      bills: c.bills[i],
-      risky: c.risky[i],
-      safe: c.safe[i],
+      equity: clip(c.equity[i]),
+      housing: clip(c.housing[i]),
+      bonds: clip(c.bonds[i]),
+      bills: clip(c.bills[i]),
+      risky: clip(c.risky[i]),
+      safe: clip(c.safe[i]),
     }));
   }, [data, country]);
 
   const barData = useMemo(() => {
     if (!data) return [];
+    const median = (arr) => {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
     const assets = [
       { key: 'equity', label: 'Equity', color: ASSET_COLORS.equity },
       { key: 'housing', label: 'Housing', color: ASSET_COLORS.housing },
@@ -72,24 +79,24 @@ export default function Chapter2() {
       const allVals = Object.values(data).flatMap(c =>
         c[asset.key].filter(v => v != null)
       );
-      const mean = allVals.reduce((s, v) => s + v, 0) / allVals.length;
-      const realApprox = mean * 100;
+      const med = median(allVals) * 100;
       return {
         asset: asset.label,
-        avgReturn: Math.round(realApprox * 100) / 100,
+        avgReturn: Math.round(med * 100) / 100,
       };
     });
   }, [data]);
 
   const buildCompareLines = (metricKey, metricLabel) => {
     if (!data || !compareMode || countries.length === 0) return null;
+    const clip = (v, threshold = 5) => (v != null && Math.abs(v) > threshold) ? null : v;
     return countries.map((c, i) => {
       const countryData = data[c];
       if (!countryData) return null;
       const offset = offsets[c] || 0;
       const shiftedData = countryData.years.map((yr, j) => ({
         year: yr + offset,
-        [metricKey]: countryData[metricKey][j],
+        [metricKey]: clip(countryData[metricKey][j]),
       }));
       return {
         key: metricKey,
@@ -118,8 +125,8 @@ export default function Chapter2() {
       return (
         <div className="w-full">
           <ChartContainer
-            title="Average Annual Returns by Asset Class"
-            subtitle="Mean across all 18 countries, 1870-2020"
+            title="Median Annual Returns by Asset Class"
+            subtitle="Median across all 18 countries, 1870-2020"
             source="JST Macrohistory Database R6"
           >
             {({ width, height }) => (
@@ -131,7 +138,7 @@ export default function Chapter2() {
                 valueKeys={[
                   { key: 'avgReturn', label: 'Avg Return (%)', color: '#0072B2' },
                 ]}
-                yLabel="Average Annual Return (%)"
+                yLabel="Median Annual Return (%)"
               />
             )}
           </ChartContainer>
