@@ -9,23 +9,23 @@ import ScrollContainer from '../components/Layout/ScrollContainer';
 const NARRATIVE = [
   {
     title: "The Credit Boom Pattern",
-    text: `Throughout modern economic history, financial crises have followed a remarkably consistent pattern. Before nearly every major banking crisis, there is a period of rapid credit expansion -- banks lend aggressively, asset prices rise, and optimism pervades the economy.`,
+    text: `Throughout modern economic history, financial crises have followed a remarkably consistent pattern. Before nearly every major banking crisis, there is a period of rapid credit expansion -- banks lend aggressively, asset prices rise, and optimism pervades the economy. The ratio of private credit to GDP captures this dynamic.`,
     chartMode: 'credit_line',
   },
   {
-    title: "When Credit Outpaces GDP",
-    text: `The ratio of private credit to GDP is one of the most reliable early warning signals for financial crises. When this ratio rises sharply -- meaning bank lending grows much faster than the overall economy -- the risk of a subsequent crisis increases dramatically.`,
-    chartMode: 'credit_line',
+    title: "Credit and House Prices",
+    text: `Credit booms and housing booms are deeply intertwined. As banks extend more mortgage lending, house prices rise; rising house prices increase collateral values, enabling even more lending. This self-reinforcing cycle -- "The Great Mortgaging" -- has become the dominant feature of modern financial systems.`,
+    chartMode: 'credit_house',
   },
   {
     title: "The Crisis Aftermath",
-    text: `Banking crises are devastating. They typically result in sharp contractions in GDP, rising unemployment, and collapsing asset prices. The red bands on the chart mark years of systemic banking crises -- note how they cluster after periods of rapid credit growth.`,
+    text: `Banking crises are devastating. They typically result in sharp contractions in GDP, rising unemployment, and collapsing asset prices. The shaded bands on the chart mark years of systemic banking crises -- note how they cluster after periods of rapid credit growth, confirming the credit-boom-bust pattern.`,
     chartMode: 'credit_with_crisis',
   },
   {
     title: "Cross-Country Patterns",
-    text: `This pattern is not unique to any single country. From Australia's 1893 crisis following a housing credit boom, to the 2008 Global Financial Crisis that swept across the developed world, the credit-boom-bust cycle appears across all 18 countries in our dataset spanning 150 years.`,
-    chartMode: 'credit_with_crisis',
+    text: `This pattern is not unique to any single country. From Australia's 1893 crisis following a housing credit boom, to the 2008 Global Financial Crisis that swept across the developed world, the credit-boom-bust cycle appears across all 18 countries in our dataset spanning 150 years. Try switching countries to see the pattern repeat.`,
+    chartMode: 'house_with_crisis',
   },
 ];
 
@@ -59,7 +59,30 @@ export default function Chapter1() {
 
   const renderChart = (activeIndex) => {
     const mode = NARRATIVE[activeIndex]?.chartMode || 'credit_line';
-    const showCrisis = mode === 'credit_with_crisis';
+
+    const linesMap = {
+      credit_line: [
+        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
+      ],
+      credit_house: [
+        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
+        { key: 'house_prices', label: 'House Prices', color: '#E69F00' },
+      ],
+      credit_with_crisis: [
+        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
+      ],
+      house_with_crisis: [
+        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
+        { key: 'house_prices', label: 'House Prices', color: '#E69F00' },
+      ],
+    };
+
+    const showCrisis = mode === 'credit_with_crisis' || mode === 'house_with_crisis';
+    const lines = linesMap[mode] || linesMap.credit_line;
+
+    const subtitle = mode === 'credit_house' || mode === 'house_with_crisis'
+      ? 'Private credit ratio and nominal house price index'
+      : 'Ratio of total loans to non-financial private sector to GDP';
 
     return (
       <div className="w-full">
@@ -67,8 +90,8 @@ export default function Chapter1() {
           <CountrySelector selected={country} onChange={setCountry} />
         </div>
         <ChartContainer
-          title={`Private Credit / GDP -- ${country}`}
-          subtitle="Ratio of total loans to non-financial private sector to GDP"
+          title={`Private Credit & Housing -- ${country}`}
+          subtitle={subtitle}
           source="JST Macrohistory Database R6"
         >
           {({ width, height }) => (
@@ -76,9 +99,7 @@ export default function Chapter1() {
               width={width}
               height={height}
               data={chartData}
-              lines={[
-                { key: 'credit_gdp', label: 'Credit/GDP', color: '#4a90b8', highlight: true },
-              ]}
+              lines={lines}
               crisisYears={showCrisis ? crisisYears : []}
               yLabel="Credit / GDP Ratio"
             />
@@ -86,7 +107,7 @@ export default function Chapter1() {
         </ChartContainer>
         {showCrisis && (
           <p className="text-xs text-crisis-red mt-2">
-            Red bands = systemic banking crisis years
+            Shaded bands = systemic banking crisis years (JST classification)
           </p>
         )}
       </div>

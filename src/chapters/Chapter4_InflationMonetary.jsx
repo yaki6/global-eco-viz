@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import * as d3 from 'd3';
 import { useChartData } from '../hooks/useChartData';
 import ChartContainer from '../components/Charts/ChartContainer';
 import LineChart from '../components/Charts/LineChart';
@@ -8,10 +9,10 @@ import ChapterSection from '../components/Layout/ChapterSection';
 import ScrollContainer from '../components/Layout/ScrollContainer';
 
 const DECADES = [
-  { label: '1950s-60s', start: 1950, end: 1970 },
-  { label: '1970s-80s', start: 1970, end: 1990 },
-  { label: '1990s-2000s', start: 1990, end: 2010 },
-  { label: '2010s-20s', start: 2010, end: 2021 },
+  { label: '1950s-60s', start: 1950, end: 1970, color: '#0072B2' },
+  { label: '1970s-80s', start: 1970, end: 1990, color: '#E69F00' },
+  { label: '1990s-2000s', start: 1990, end: 2010, color: '#009E73' },
+  { label: '2010s-20s', start: 2010, end: 2021, color: '#CC79A7' },
 ];
 
 const NARRATIVE = [
@@ -21,26 +22,26 @@ const NARRATIVE = [
     chartMode: 'inflation_line',
   },
   {
-    title: "The Phillips Curve",
-    text: `In 1958, A.W. Phillips documented an inverse relationship between unemployment and wage inflation -- the famous Phillips Curve. When unemployment is low, workers have bargaining power and wages rise; when it's high, inflation moderates. But this relationship has shifted dramatically over time.`,
+    title: "The Phillips Curve Across Monetary Regimes",
+    text: `In 1958, A.W. Phillips documented an inverse relationship between unemployment and wage inflation. But this relationship has shifted dramatically across monetary regimes -- from the gold standard, to Bretton Woods, to fiat money. Each dot is one year; colors represent different eras. The slope and position of the relationship changes as monetary policy frameworks evolve.`,
     chartMode: 'phillips',
   },
   {
-    title: "Monetary Policy and Interest Rates",
-    text: `Central banks use short-term interest rates as their primary policy tool. When inflation rises, they raise rates to cool the economy; when recession threatens, they cut rates to stimulate growth. The relationship between inflation and the short-term interest rate reveals how actively central banks manage the economy.`,
-    chartMode: 'rates',
+    title: "Interest Rates: The Price of Money",
+    text: `Central banks use short-term interest rates as their primary policy tool. When inflation rises, they raise rates to cool the economy; when recession threatens, they cut rates. The charts below show inflation alongside the short-term rate and long-term rate separately, revealing how policy transmission works.`,
+    chartMode: 'rates_inflation',
   },
   {
     title: "The Great Moderation and Beyond",
-    text: `From the mid-1980s to 2007, advanced economies enjoyed a period known as the "Great Moderation" -- low, stable inflation and reduced economic volatility. Some attributed this to improved monetary policy; others to structural changes in the global economy. The 2008 crisis and COVID-19 pandemic have tested this stability.`,
-    chartMode: 'inflation_line',
+    text: `From the mid-1980s to 2007, advanced economies enjoyed the "Great Moderation" -- low, stable inflation and reduced economic volatility. The 2008 crisis and COVID-19 pandemic have tested this stability, pushing central banks to adopt unconventional tools like zero rates and quantitative easing.`,
+    chartMode: 'rates_long',
   },
 ];
 
 export default function Chapter4() {
   const { data, loading } = useChartData('/data/chapter4.json');
   const [country, setCountry] = useState('USA');
-  const [decadeIdx, setDecadeIdx] = useState(0);
+  const [decadeIdx, setDecadeIdx] = useState(1);
 
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
@@ -56,11 +57,19 @@ export default function Chapter4() {
 
   const phillipsData = useMemo(() => {
     const decade = DECADES[decadeIdx];
-    return chartData.filter(d =>
-      d.year >= decade.start && d.year < decade.end &&
-      d.unemployment != null && d.inflation != null
-    );
+    return chartData
+      .filter(d =>
+        d.year >= decade.start && d.year < decade.end &&
+        d.unemployment != null && d.inflation != null
+      )
+      .map(d => ({ ...d, decadeColor: decade.color }));
   }, [chartData, decadeIdx]);
+
+  const decadeColorScale = useMemo(() => {
+    return d3.scaleOrdinal()
+      .domain(DECADES.map(d => d.color))
+      .range(DECADES.map(d => d.color));
+  }, []);
 
   if (loading) return <div className="py-20 text-center text-gray-400">Loading data...</div>;
 
@@ -77,7 +86,7 @@ export default function Chapter4() {
     if (mode === 'phillips') {
       return (
         <div className="w-full">
-          <div className="mb-4 flex items-center gap-4">
+          <div className="mb-4 flex flex-wrap items-center gap-4">
             <CountrySelector selected={country} onChange={setCountry} />
             <div className="flex gap-1">
               {DECADES.map((d, i) => (
@@ -86,9 +95,10 @@ export default function Chapter4() {
                   onClick={() => setDecadeIdx(i)}
                   className={`px-2 py-1 text-xs rounded border transition-colors ${
                     decadeIdx === i
-                      ? 'bg-navy text-white border-navy'
+                      ? 'text-white border-transparent'
                       : 'bg-white text-gray-600 border-gray-300 hover:border-navy'
                   }`}
+                  style={decadeIdx === i ? { backgroundColor: d.color } : {}}
                 >
                   {d.label}
                 </button>
@@ -109,23 +119,30 @@ export default function Chapter4() {
                 yKey="inflation"
                 xLabel="Unemployment Rate (%)"
                 yLabel="Inflation Rate (%)"
+                colorKey="decadeColor"
+                colorScale={decadeColorScale}
                 showTrend={true}
               />
             )}
           </ChartContainer>
+          <p className="text-xs text-gray-500 mt-2 italic">
+            Caveat: Pre-WWII unemployment data uses different methodology and definitions
+            across countries. Cross-era comparisons should be interpreted with caution.
+          </p>
         </div>
       );
     }
 
-    if (mode === 'rates') {
+    if (mode === 'rates_inflation') {
+      // Small multiples: inflation vs short rate
       return (
         <div className="w-full">
           <div className="mb-4">
             <CountrySelector selected={country} onChange={setCountry} />
           </div>
           <ChartContainer
-            title={`Inflation & Interest Rates -- ${country}`}
-            subtitle="Inflation rate vs short-term and long-term interest rates"
+            title={`Inflation & Short-Term Rate -- ${country}`}
+            subtitle="CPI inflation vs central bank policy rate"
             source="JST Macrohistory Database R6"
           >
             {({ width, height }) => (
@@ -134,9 +151,36 @@ export default function Chapter4() {
                 height={height}
                 data={chartData}
                 lines={[
-                  { key: 'inflation', label: 'Inflation', color: '#e53e3e', highlight: true },
-                  { key: 'short_rate', label: 'Short Rate', color: '#4a90b8' },
-                  { key: 'long_rate', label: 'Long Rate', color: '#7b61a8' },
+                  { key: 'inflation', label: 'Inflation', color: '#d35f5f', highlight: true },
+                  { key: 'short_rate', label: 'Short Rate', color: '#0072B2' },
+                ]}
+                yLabel="Rate (%)"
+              />
+            )}
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    if (mode === 'rates_long') {
+      return (
+        <div className="w-full">
+          <div className="mb-4">
+            <CountrySelector selected={country} onChange={setCountry} />
+          </div>
+          <ChartContainer
+            title={`Long-Term Rate & Inflation -- ${country}`}
+            subtitle="Government bond yield vs CPI inflation"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={chartData}
+                lines={[
+                  { key: 'inflation', label: 'Inflation', color: '#d35f5f', highlight: true },
+                  { key: 'long_rate', label: 'Long Rate', color: '#E69F00' },
                 ]}
                 yLabel="Rate (%)"
               />
@@ -163,7 +207,7 @@ export default function Chapter4() {
               height={height}
               data={chartData}
               lines={[
-                { key: 'inflation', label: 'Inflation (%)', color: '#e53e3e', highlight: true },
+                { key: 'inflation', label: 'Inflation (%)', color: '#d35f5f', highlight: true },
               ]}
               yLabel="Inflation Rate (%)"
             />

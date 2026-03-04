@@ -6,22 +6,22 @@ export default function ScrollContainer({ narrativeSections, chartRenderer }) {
   const activeSection = useScrollProgress(sectionRefs);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col md:flex-row min-h-screen">
       {/* Left: narrative text */}
-      <div className="w-2/5 pr-8">
+      <div className="w-full md:w-2/5 md:pr-8">
         {narrativeSections.map((section, i) => (
           <div
             key={i}
             ref={(el) => (sectionRefs.current[i] = el)}
-            className="min-h-screen flex items-center"
+            className="min-h-[50vh] md:min-h-screen flex items-center"
           >
-            <div className="py-16">{section}</div>
+            <div className="py-8 md:py-16">{section}</div>
           </div>
         ))}
       </div>
       {/* Right: sticky chart */}
-      <div className="w-3/5 relative">
-        <div className="sticky top-14 h-[calc(100vh-3.5rem)] flex items-center justify-center p-8">
+      <div className="w-full md:w-3/5 relative">
+        <div className="sticky top-14 h-[50vh] md:h-[calc(100vh-3.5rem)] flex items-center justify-center p-4 md:p-8">
           {chartRenderer(activeSection)}
         </div>
       </div>

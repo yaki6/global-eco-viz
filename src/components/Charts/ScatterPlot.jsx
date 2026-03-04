@@ -5,7 +5,7 @@ const MARGIN = { top: 20, right: 30, bottom: 50, left: 60 };
 
 export default function ScatterPlot({
   width, height, data, xKey, yKey, xLabel, yLabel,
-  colorKey, colorScale, radiusKey, showTrend = false,
+  colorKey, colorScale, radiusKey, showTrend = false, labelKey,
 }) {
   const svgRef = useRef(null);
 
@@ -43,16 +43,58 @@ export default function ScatterPlot({
         .attr('font-size', '12px').text(yLabel);
     }
 
-    // Dots
-    g.selectAll('circle').data(filtered).enter()
-      .append('circle')
+    // Tooltip
+    const tooltipG = g.append('g').style('display', 'none');
+    const tooltipBg = tooltipG.append('rect')
+      .attr('fill', 'white').attr('stroke', '#e2e8f0').attr('rx', 4).attr('opacity', 0.95);
+    const tooltipText = tooltipG.append('text')
+      .attr('font-size', '11px').attr('fill', '#1a202c');
+
+    // Dots with join pattern
+    g.selectAll('.dot')
+      .data(filtered)
+      .join('circle')
+      .attr('class', 'dot')
       .attr('cx', d => x(d[xKey]))
       .attr('cy', d => y(d[yKey]))
       .attr('r', d => radiusKey ? Math.max(2, Math.sqrt(d[radiusKey]) * 2) : 4)
-      .attr('fill', d => colorKey && colorScale ? colorScale(d[colorKey]) : '#4a90b8')
+      .attr('fill', d => colorKey && colorScale ? colorScale(d[colorKey]) : '#0072B2')
       .attr('opacity', 0.6)
       .attr('stroke', '#fff')
-      .attr('stroke-width', 0.5);
+      .attr('stroke-width', 0.5)
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('r', 7).attr('opacity', 1);
+        tooltipG.style('display', null);
+        tooltipText.selectAll('tspan').remove();
+        if (labelKey && d[labelKey]) {
+          tooltipText.append('tspan')
+            .attr('x', 8).attr('dy', 14).attr('font-weight', 'bold')
+            .text(d[labelKey]);
+        }
+        if (d.year) {
+          tooltipText.append('tspan')
+            .attr('x', 8).attr('dy', 14).attr('font-weight', 'bold')
+            .text(`Year: ${d.year}`);
+        }
+        tooltipText.append('tspan')
+          .attr('x', 8).attr('dy', 14)
+          .text(`${xLabel || xKey}: ${d[xKey].toFixed(2)}`);
+        tooltipText.append('tspan')
+          .attr('x', 8).attr('dy', 14)
+          .text(`${yLabel || yKey}: ${d[yKey].toFixed(2)}`);
+        const bbox = tooltipText.node().getBBox();
+        tooltipBg.attr('width', bbox.width + 16).attr('height', bbox.height + 8)
+          .attr('y', bbox.y - 4);
+        const tipX = x(d[xKey]) + 15 > w - bbox.width - 20
+          ? x(d[xKey]) - bbox.width - 30
+          : x(d[xKey]) + 15;
+        tooltipG.attr('transform', `translate(${tipX}, ${y(d[yKey]) - 20})`);
+      })
+      .on('mouseout', function() {
+        d3.select(this).attr('r', d => radiusKey ? Math.max(2, Math.sqrt(d[radiusKey]) * 2) : 4)
+          .attr('opacity', 0.6);
+        tooltipG.style('display', 'none');
+      });
 
     // Trend line
     if (showTrend && filtered.length > 5) {
@@ -67,10 +109,10 @@ export default function ScatterPlot({
       g.append('line')
         .attr('x1', x(xExt[0])).attr('y1', y(intercept + slope * xExt[0]))
         .attr('x2', x(xExt[1])).attr('y2', y(intercept + slope * xExt[1]))
-        .attr('stroke', '#e53e3e').attr('stroke-width', 1.5)
+        .attr('stroke', '#d35f5f').attr('stroke-width', 1.5)
         .attr('stroke-dasharray', '6,3').attr('opacity', 0.7);
     }
-  }, [data, width, height, xKey, yKey, xLabel, yLabel, colorKey, colorScale, radiusKey, showTrend]);
+  }, [data, width, height, xKey, yKey, xLabel, yLabel, colorKey, colorScale, radiusKey, showTrend, labelKey]);
 
   return <svg ref={svgRef} width={width} height={height} />;
 }

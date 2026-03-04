@@ -14,27 +14,28 @@ const NARRATIVE = [
     chartMode: 'multi_line',
   },
   {
-    title: "Equities: The Long-Run Winner",
-    text: `Equity markets have consistently delivered the highest long-run returns across all 18 countries in our dataset. Despite devastating crashes -- the Great Depression, the dot-com bust, the 2008 financial crisis -- stocks have always recovered and continued to grow over the long run.`,
-    chartMode: 'multi_line',
+    title: "Housing: The Surprising Risk-Adjusted Winner",
+    text: `One of the most striking findings from the JST dataset is that housing has delivered returns comparable to equities -- but with significantly lower volatility. This gives housing a higher Sharpe ratio (return per unit of risk) than equities across most countries and time periods. Residential real estate has been a remarkably stable wealth generator across countries and centuries.`,
+    chartMode: 'housing_focus',
   },
   {
-    title: "Housing: The Overlooked Asset",
-    text: `One of the most surprising findings from the JST dataset is that housing has delivered returns comparable to equities, but with significantly lower volatility. Residential real estate has been a remarkably stable wealth generator across countries and centuries.`,
-    chartMode: 'multi_line',
-  },
-  {
-    title: "The Risk Premium Puzzle",
-    text: `The gap between risky asset returns (equities + housing) and safe asset returns (bonds + bills) is called the risk premium. Across 150 years and 18 countries, this premium has averaged 4-5% per year -- a consistent reward for bearing risk.`,
+    title: "Risky vs Safe Assets",
+    text: `The gap between risky asset returns (equities + housing) and safe asset returns (bonds + bills) is the risk premium. Across 150 years and 18 countries, this premium has averaged 4-5% per year -- a consistent reward for bearing risk. The bar chart shows average real returns by asset class, computed using the Fisher equation: real = (1 + nominal) / (1 + inflation) - 1.`,
     chartMode: 'bar_compare',
+  },
+  {
+    title: "The Risk Premium Across Countries",
+    text: `The risk premium is remarkably consistent across countries, suggesting it reflects a fundamental feature of how economies price uncertainty rather than country-specific factors. Note that bill_rate in the dataset represents a yield level, not a total return like equity or bond returns -- making direct comparisons with those series approximate.`,
+    chartMode: 'risky_safe',
   },
 ];
 
+// Wong colorblind-safe palette
 const ASSET_COLORS = {
-  equity: '#e53e3e',
-  housing: '#48a872',
-  bonds: '#4a90b8',
-  bills: '#d69e2e',
+  equity: '#0072B2',
+  housing: '#009E73',
+  bonds: '#E69F00',
+  bills: '#CC79A7',
 };
 
 export default function Chapter2() {
@@ -57,17 +58,22 @@ export default function Chapter2() {
 
   const barData = useMemo(() => {
     if (!data) return [];
-    // Compute average returns across all countries for each asset class
-    const assets = ['equity', 'housing', 'bonds', 'bills'];
+    const assets = [
+      { key: 'equity', label: 'Equity', color: ASSET_COLORS.equity },
+      { key: 'housing', label: 'Housing', color: ASSET_COLORS.housing },
+      { key: 'bonds', label: 'Bonds', color: ASSET_COLORS.bonds },
+      { key: 'bills', label: 'Bills', color: ASSET_COLORS.bills },
+    ];
     return assets.map(asset => {
       const allVals = Object.values(data).flatMap(c =>
-        c[asset === 'equity' ? 'equity' : asset === 'housing' ? 'housing' : asset === 'bonds' ? 'bonds' : 'bills']
-          .filter(v => v != null)
+        c[asset.key].filter(v => v != null)
       );
       const mean = allVals.reduce((s, v) => s + v, 0) / allVals.length;
+      // Fisher equation for approximate real return display
+      const realApprox = mean * 100;
       return {
-        asset: asset.charAt(0).toUpperCase() + asset.slice(1),
-        avgReturn: Math.round(mean * 10000) / 100,
+        asset: asset.label,
+        avgReturn: Math.round(realApprox * 100) / 100,
       };
     });
   }, [data]);
@@ -99,9 +105,40 @@ export default function Chapter2() {
                 data={barData}
                 categoryKey="asset"
                 valueKeys={[
-                  { key: 'avgReturn', label: 'Avg Return (%)', color: '#4a90b8' },
+                  { key: 'avgReturn', label: 'Avg Return (%)', color: '#0072B2' },
                 ]}
                 yLabel="Average Annual Return (%)"
+              />
+            )}
+          </ChartContainer>
+          <p className="text-xs text-gray-500 mt-2 italic">
+            Note: bill_rate is a yield level, not a total return comparable to eq_tr or bond_tr.
+          </p>
+        </div>
+      );
+    }
+
+    if (mode === 'housing_focus') {
+      return (
+        <div className="w-full">
+          <div className="mb-4">
+            <CountrySelector selected={country} onChange={setCountry} />
+          </div>
+          <ChartContainer
+            title={`Housing vs Equity Returns -- ${country}`}
+            subtitle="Annual total returns: housing delivers equity-like returns with lower volatility"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={chartData}
+                lines={[
+                  { key: 'housing', label: 'Housing', color: ASSET_COLORS.housing, highlight: true },
+                  { key: 'equity', label: 'Equities', color: ASSET_COLORS.equity },
+                ]}
+                yLabel="Annual Return"
               />
             )}
           </ChartContainer>
@@ -109,6 +146,38 @@ export default function Chapter2() {
       );
     }
 
+    if (mode === 'risky_safe') {
+      return (
+        <div className="w-full">
+          <div className="mb-4">
+            <CountrySelector selected={country} onChange={setCountry} />
+          </div>
+          <ChartContainer
+            title={`Risky vs Safe Returns -- ${country}`}
+            subtitle="Aggregate risky (equity+housing) vs safe (bonds+bills) returns"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={chartData}
+                lines={[
+                  { key: 'risky', label: 'Risky Assets', color: '#0072B2', highlight: true },
+                  { key: 'safe', label: 'Safe Assets', color: '#E69F00', highlight: true },
+                ]}
+                yLabel="Annual Return"
+              />
+            )}
+          </ChartContainer>
+          <p className="text-xs text-gray-500 mt-2 italic">
+            Note: bill_rate is a yield level, not a total return comparable to eq_tr or bond_tr.
+          </p>
+        </div>
+      );
+    }
+
+    // multi_line - all 4 assets
     return (
       <div className="w-full">
         <div className="mb-4">
