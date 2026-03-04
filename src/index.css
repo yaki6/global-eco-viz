@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1a365d;
+  --color-navy-light: #2a4a7f;
+  --color-warm-white: #fafaf5;
+  --color-gold: #d69e2e;
+  --color-crisis-red: #e53e3e;
+  --color-muted-blue: #4a90b8;
+  --color-muted-green: #48a872;
+  --color-muted-purple: #7b61a8;
+  --font-heading: Georgia, Charter, "Times New Roman", serif;
+  --font-body: Inter, system-ui, -apple-system, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-warm-white);
+  color: #1a202c;
+}
