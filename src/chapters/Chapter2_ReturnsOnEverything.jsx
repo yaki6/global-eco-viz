@@ -4,6 +4,7 @@ import ChartContainer from '../components/Charts/ChartContainer';
 import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import CountrySelector from '../components/UI/CountrySelector';
+import CompareControls, { getCompareColor } from '../components/UI/CompareControls';
 import ChapterSection from '../components/Layout/ChapterSection';
 import ScrollContainer from '../components/Layout/ScrollContainer';
 
@@ -41,6 +42,9 @@ const ASSET_COLORS = {
 export default function Chapter2() {
   const { data, loading } = useChartData('/data/chapter2.json');
   const [country, setCountry] = useState('USA');
+  const [compareMode, setCompareMode] = useState(false);
+  const [countries, setCountries] = useState([]);
+  const [offsets, setOffsets] = useState({});
 
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
@@ -69,7 +73,6 @@ export default function Chapter2() {
         c[asset.key].filter(v => v != null)
       );
       const mean = allVals.reduce((s, v) => s + v, 0) / allVals.length;
-      // Fisher equation for approximate real return display
       const realApprox = mean * 100;
       return {
         asset: asset.label,
@@ -77,6 +80,26 @@ export default function Chapter2() {
       };
     });
   }, [data]);
+
+  const buildCompareLines = (metricKey, metricLabel) => {
+    if (!data || !compareMode || countries.length === 0) return null;
+    return countries.map((c, i) => {
+      const countryData = data[c];
+      if (!countryData) return null;
+      const offset = offsets[c] || 0;
+      const shiftedData = countryData.years.map((yr, j) => ({
+        year: yr + offset,
+        [metricKey]: countryData[metricKey][j],
+      }));
+      return {
+        key: metricKey,
+        label: `${c} ${offset !== 0 ? `(${offset > 0 ? '+' : ''}${offset}yr)` : ''}`,
+        color: getCompareColor(i),
+        highlight: true,
+        data: shiftedData,
+      };
+    }).filter(Boolean);
+  };
 
   if (loading) return <div className="py-20 text-center text-gray-400">Loading data...</div>;
 
@@ -90,6 +113,7 @@ export default function Chapter2() {
   const renderChart = (activeIndex) => {
     const mode = NARRATIVE[activeIndex]?.chartMode || 'multi_line';
 
+    // Bar chart mode doesn't support compare overlay
     if (mode === 'bar_compare') {
       return (
         <div className="w-full">
@@ -118,12 +142,63 @@ export default function Chapter2() {
       );
     }
 
+    // Compare mode
+    if (compareMode && countries.length > 0) {
+      let metricKey, metricLabel, title;
+      if (mode === 'housing_focus') {
+        metricKey = 'housing'; metricLabel = 'Housing'; title = 'Housing Returns -- Compare';
+      } else if (mode === 'risky_safe') {
+        metricKey = 'risky'; metricLabel = 'Risky Assets'; title = 'Risky Asset Returns -- Compare';
+      } else {
+        metricKey = 'equity'; metricLabel = 'Equity'; title = 'Equity Returns -- Compare';
+      }
+      const compareLines = buildCompareLines(metricKey, metricLabel) || [];
+
+      return (
+        <div className="w-full">
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(false)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
+          <ChartContainer
+            title={title}
+            subtitle="Overlay multiple countries (use offset to time-shift)"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={[]}
+                lines={compareLines}
+                yLabel="Annual Return"
+              />
+            )}
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    // Single country modes (unchanged)
     if (mode === 'housing_focus') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Housing vs Equity Returns -- ${country}`}
             subtitle="Annual total returns: housing delivers equity-like returns with lower volatility"
@@ -149,9 +224,16 @@ export default function Chapter2() {
     if (mode === 'risky_safe') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Risky vs Safe Returns -- ${country}`}
             subtitle="Aggregate risky (equity+housing) vs safe (bonds+bills) returns"
@@ -180,9 +262,16 @@ export default function Chapter2() {
     // multi_line - all 4 assets
     return (
       <div className="w-full">
-        <div className="mb-4">
-          <CountrySelector selected={country} onChange={setCountry} />
-        </div>
+        <CompareControls
+          compareMode={compareMode}
+          onToggleCompare={() => setCompareMode(true)}
+          countries={countries}
+          onCountriesChange={setCountries}
+          offsets={offsets}
+          onOffsetsChange={setOffsets}
+          singleCountry={country}
+          onSingleCountryChange={setCountry}
+        />
         <ChartContainer
           title={`Asset Returns -- ${country}`}
           subtitle="Annual total returns by asset class"

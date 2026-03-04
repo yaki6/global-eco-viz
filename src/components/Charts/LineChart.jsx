@@ -10,7 +10,11 @@ export default function LineChart({
   const svgRef = useRef(null);
 
   useEffect(() => {
-    if (!data || !data.length || !width) return;
+    if (!width) return;
+    // Allow rendering when per-line data is used even if shared data is empty
+    const hasAnyData = (data && data.length) || lines.some(l => l.data && l.data.length);
+    if (!hasAnyData) return;
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -18,11 +22,19 @@ export default function LineChart({
     const h = height - MARGIN.top - MARGIN.bottom;
     const g = svg.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
 
+    // Resolve per-line datasets
+    const resolvedData = lines.map(l => l.data || data || []);
+
+    // X domain: union across all per-line datasets
+    const allXVals = resolvedData.flatMap(d => d.map(row => row[xKey]).filter(v => v != null));
     const x = d3.scaleLinear()
-      .domain(xDomain || d3.extent(data, d => d[xKey]))
+      .domain(xDomain || d3.extent(allXVals))
       .range([0, w]);
 
-    const allVals = lines.flatMap(l => data.map(d => d[l.key]).filter(v => v != null));
+    // Y domain: iterate per-line datasets
+    const allVals = lines.flatMap((l, i) =>
+      resolvedData[i].map(d => d[l.key]).filter(v => v != null)
+    );
     const y = d3.scaleLinear()
       .domain(yDomain || [Math.min(0, d3.min(allVals)), d3.max(allVals) * 1.1])
       .range([h, 0]);
@@ -57,9 +69,9 @@ export default function LineChart({
         .text(yLabel);
     }
 
-    // Lines with join pattern
-    lines.forEach((lineConfig) => {
-      const lineData = data.filter(d => d[lineConfig.key] != null);
+    // Lines with per-line data support
+    lines.forEach((lineConfig, i) => {
+      const lineData = resolvedData[i].filter(d => d[lineConfig.key] != null);
       const line = d3.line()
         .x(d => x(d[xKey]))
         .y(d => y(d[lineConfig.key]))
@@ -88,6 +100,19 @@ export default function LineChart({
     }
 
     // Tooltip overlay with bisector
+    // Use the primary dataset (first line with data, or shared data) for bisecting
+    const primaryData = resolvedData[0] || data || [];
+    // Build a merged year map for tooltip: year -> { lineIdx: value }
+    const yearMap = new Map();
+    resolvedData.forEach((rd, li) => {
+      rd.forEach(d => {
+        const yr = d[xKey];
+        if (!yearMap.has(yr)) yearMap.set(yr, { [xKey]: yr });
+        yearMap.get(yr)[`__line_${li}`] = d[lines[li].key];
+      });
+    });
+    const mergedYears = Array.from(yearMap.values()).sort((a, b) => a[xKey] - b[xKey]);
+
     const bisect = d3.bisector(d => d[xKey]).left;
     const focusLine = g.append('line')
       .attr('stroke', '#718096').attr('stroke-width', 1)
@@ -115,16 +140,16 @@ export default function LineChart({
       .on('mousemove', function(event) {
         const [mx] = d3.pointer(event);
         const xVal = x.invert(mx);
-        const idx = bisect(data, xVal, 1);
-        const d0 = data[idx - 1];
-        const d1 = data[idx];
+        const idx = bisect(mergedYears, xVal, 1);
+        const d0 = mergedYears[idx - 1];
+        const d1 = mergedYears[idx];
         if (!d0) return;
         const d = d1 && (xVal - d0[xKey] > d1[xKey] - xVal) ? d1 : d0;
         const xPos = x(d[xKey]);
 
         focusLine.attr('x1', xPos).attr('x2', xPos).style('display', null);
         focusDots.forEach((dot, i) => {
-          const val = d[lines[i].key];
+          const val = d[`__line_${i}`];
           if (val != null) {
             dot.attr('cx', xPos).attr('cy', y(val)).style('display', null);
           } else {
@@ -138,8 +163,8 @@ export default function LineChart({
         tooltipText.append('tspan')
           .attr('x', 8).attr('dy', 14).attr('font-weight', 'bold')
           .text(d[xKey]);
-        lines.forEach(l => {
-          const val = d[l.key];
+        lines.forEach((l, i) => {
+          const val = d[`__line_${i}`];
           if (val != null) {
             tooltipText.append('tspan')
               .attr('x', 8).attr('dy', 14).attr('fill', l.color)
@@ -150,8 +175,14 @@ export default function LineChart({
         const bbox = tooltipText.node().getBBox();
         tooltipBg.attr('width', bbox.width + 16).attr('height', bbox.height + 8)
           .attr('y', bbox.y - 4);
+        // Find first valid value for Y positioning
+        let firstValidY = h / 2;
+        for (let i = 0; i < lines.length; i++) {
+          const val = d[`__line_${i}`];
+          if (val != null) { firstValidY = y(val); break; }
+        }
         const tipX = xPos + 15 > w - bbox.width - 20 ? xPos - bbox.width - 30 : xPos + 15;
-        tooltipG.attr('transform', `translate(${tipX}, ${Math.max(0, y(d[lines[0].key] || 0) - 30)})`);
+        tooltipG.attr('transform', `translate(${tipX}, ${Math.max(0, firstValidY - 30)})`);
       })
       .on('mouseout', function() {
         focusLine.style('display', 'none');

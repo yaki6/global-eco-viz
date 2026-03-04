@@ -3,6 +3,7 @@ import { useChartData } from '../hooks/useChartData';
 import ChartContainer from '../components/Charts/ChartContainer';
 import LineChart from '../components/Charts/LineChart';
 import CountrySelector from '../components/UI/CountrySelector';
+import CompareControls, { getCompareColor } from '../components/UI/CompareControls';
 import ChapterSection from '../components/Layout/ChapterSection';
 import ScrollContainer from '../components/Layout/ScrollContainer';
 
@@ -32,6 +33,9 @@ const NARRATIVE = [
 export default function Chapter1() {
   const { data, loading } = useChartData('/data/chapter1.json');
   const [country, setCountry] = useState('USA');
+  const [compareMode, setCompareMode] = useState(false);
+  const [countries, setCountries] = useState([]);
+  const [offsets, setOffsets] = useState({});
 
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
@@ -48,6 +52,27 @@ export default function Chapter1() {
     return chartData.filter(d => d.crisis === 1).map(d => d.year);
   }, [chartData]);
 
+  // Build per-country shifted data for compare mode
+  const buildCompareLines = (metricKey, metricLabel) => {
+    if (!data || !compareMode || countries.length === 0) return null;
+    return countries.map((c, i) => {
+      const countryData = data[c];
+      if (!countryData) return null;
+      const offset = offsets[c] || 0;
+      const shiftedData = countryData.years.map((yr, j) => ({
+        year: yr + offset,
+        [metricKey]: countryData[metricKey][j],
+      }));
+      return {
+        key: metricKey,
+        label: `${c} ${offset !== 0 ? `(${offset > 0 ? '+' : ''}${offset}yr)` : ''}`,
+        color: getCompareColor(i),
+        highlight: true,
+        data: shiftedData,
+      };
+    }).filter(Boolean);
+  };
+
   if (loading) return <div className="py-20 text-center text-gray-400">Loading data...</div>;
 
   const narrativeSections = NARRATIVE.map((section, i) => (
@@ -60,6 +85,61 @@ export default function Chapter1() {
   const renderChart = (activeIndex) => {
     const mode = NARRATIVE[activeIndex]?.chartMode || 'credit_line';
 
+    // Compare mode: overlay multiple countries
+    if (compareMode && countries.length > 0) {
+      const primaryKey = (mode === 'credit_house' || mode === 'house_with_crisis')
+        ? 'credit_gdp' : 'credit_gdp';
+      const compareLines = buildCompareLines('credit_gdp', 'Credit/GDP');
+
+      // For dual-metric modes, also show house prices
+      let allLines = compareLines || [];
+      if (mode === 'credit_house' || mode === 'house_with_crisis') {
+        const houseLines = buildCompareLines('house_prices', 'House Prices');
+        if (houseLines) {
+          // Use dashed style for house price lines
+          allLines = [
+            ...compareLines,
+            ...houseLines.map(l => ({ ...l, label: `${l.label} (HP)` })),
+          ];
+        }
+      }
+
+      const title = mode === 'credit_house' || mode === 'house_with_crisis'
+        ? 'Credit & Housing -- Compare'
+        : 'Private Credit / GDP -- Compare';
+
+      return (
+        <div className="w-full">
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(false)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
+          <ChartContainer
+            title={title}
+            subtitle="Overlay multiple countries (use offset to align credit booms)"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={[]}
+                lines={allLines}
+                yLabel="Credit / GDP Ratio"
+              />
+            )}
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    // Single country mode (unchanged)
     const linesMap = {
       credit_line: [
         { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
@@ -86,9 +166,16 @@ export default function Chapter1() {
 
     return (
       <div className="w-full">
-        <div className="mb-4">
-          <CountrySelector selected={country} onChange={setCountry} />
-        </div>
+        <CompareControls
+          compareMode={compareMode}
+          onToggleCompare={() => setCompareMode(true)}
+          countries={countries}
+          onCountriesChange={setCountries}
+          offsets={offsets}
+          onOffsetsChange={setOffsets}
+          singleCountry={country}
+          onSingleCountryChange={setCountry}
+        />
         <ChartContainer
           title={`Private Credit & Housing -- ${country}`}
           subtitle={subtitle}

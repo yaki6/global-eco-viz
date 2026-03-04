@@ -5,6 +5,7 @@ import ChartContainer from '../components/Charts/ChartContainer';
 import LineChart from '../components/Charts/LineChart';
 import ScatterPlot from '../components/Charts/ScatterPlot';
 import CountrySelector from '../components/UI/CountrySelector';
+import CompareControls, { getCompareColor } from '../components/UI/CompareControls';
 import ChapterSection from '../components/Layout/ChapterSection';
 import ScrollContainer from '../components/Layout/ScrollContainer';
 
@@ -42,6 +43,9 @@ export default function Chapter4() {
   const { data, loading } = useChartData('/data/chapter4.json');
   const [country, setCountry] = useState('USA');
   const [decadeIdx, setDecadeIdx] = useState(1);
+  const [compareMode, setCompareMode] = useState(false);
+  const [countries, setCountries] = useState([]);
+  const [offsets, setOffsets] = useState({});
 
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
@@ -71,6 +75,26 @@ export default function Chapter4() {
       .range(DECADES.map(d => d.color));
   }, []);
 
+  const buildCompareLines = (metricKey, metricLabel) => {
+    if (!data || !compareMode || countries.length === 0) return null;
+    return countries.map((c, i) => {
+      const countryData = data[c];
+      if (!countryData) return null;
+      const offset = offsets[c] || 0;
+      const shiftedData = countryData.years.map((yr, j) => ({
+        year: yr + offset,
+        [metricKey]: countryData[metricKey][j],
+      }));
+      return {
+        key: metricKey,
+        label: `${c} ${offset !== 0 ? `(${offset > 0 ? '+' : ''}${offset}yr)` : ''}`,
+        color: getCompareColor(i),
+        highlight: true,
+        data: shiftedData,
+      };
+    }).filter(Boolean);
+  };
+
   if (loading) return <div className="py-20 text-center text-gray-400">Loading data...</div>;
 
   const narrativeSections = NARRATIVE.map((section, i) => (
@@ -83,6 +107,7 @@ export default function Chapter4() {
   const renderChart = (activeIndex) => {
     const mode = NARRATIVE[activeIndex]?.chartMode || 'inflation_line';
 
+    // Phillips curve doesn't support compare overlay
     if (mode === 'phillips') {
       return (
         <div className="w-full">
@@ -133,13 +158,63 @@ export default function Chapter4() {
       );
     }
 
-    if (mode === 'rates_inflation') {
-      // Small multiples: inflation vs short rate
+    // Compare mode for line chart modes
+    if (compareMode && countries.length > 0) {
+      let metricKey, title, yLabel;
+      if (mode === 'rates_inflation') {
+        metricKey = 'short_rate'; title = 'Short-Term Rate -- Compare'; yLabel = 'Rate (%)';
+      } else if (mode === 'rates_long') {
+        metricKey = 'long_rate'; title = 'Long-Term Rate -- Compare'; yLabel = 'Rate (%)';
+      } else {
+        metricKey = 'inflation'; title = 'Inflation Rate -- Compare'; yLabel = 'Inflation Rate (%)';
+      }
+      const compareLines = buildCompareLines(metricKey, title) || [];
+
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(false)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
+          <ChartContainer
+            title={title}
+            subtitle="Overlay multiple countries (use offset to time-shift)"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={[]}
+                lines={compareLines}
+                yLabel={yLabel}
+              />
+            )}
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    // Single country modes
+    if (mode === 'rates_inflation') {
+      return (
+        <div className="w-full">
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Inflation & Short-Term Rate -- ${country}`}
             subtitle="CPI inflation vs central bank policy rate"
@@ -165,9 +240,16 @@ export default function Chapter4() {
     if (mode === 'rates_long') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Long-Term Rate & Inflation -- ${country}`}
             subtitle="Government bond yield vs CPI inflation"
@@ -193,9 +275,16 @@ export default function Chapter4() {
     // inflation_line
     return (
       <div className="w-full">
-        <div className="mb-4">
-          <CountrySelector selected={country} onChange={setCountry} />
-        </div>
+        <CompareControls
+          compareMode={compareMode}
+          onToggleCompare={() => setCompareMode(true)}
+          countries={countries}
+          onCountriesChange={setCountries}
+          offsets={offsets}
+          onOffsetsChange={setOffsets}
+          singleCountry={country}
+          onSingleCountryChange={setCountry}
+        />
         <ChartContainer
           title={`Inflation Rate -- ${country}`}
           subtitle="Year-over-year change in consumer prices"

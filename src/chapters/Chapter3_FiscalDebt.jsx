@@ -3,6 +3,7 @@ import { useChartData } from '../hooks/useChartData';
 import ChartContainer from '../components/Charts/ChartContainer';
 import LineChart from '../components/Charts/LineChart';
 import CountrySelector from '../components/UI/CountrySelector';
+import CompareControls, { getCompareColor } from '../components/UI/CompareControls';
 import ChapterSection from '../components/Layout/ChapterSection';
 import ScrollContainer from '../components/Layout/ScrollContainer';
 
@@ -32,6 +33,9 @@ const NARRATIVE = [
 export default function Chapter3() {
   const { data, loading } = useChartData('/data/chapter3.json');
   const [country, setCountry] = useState('USA');
+  const [compareMode, setCompareMode] = useState(false);
+  const [countries, setCountries] = useState([]);
+  const [offsets, setOffsets] = useState({});
 
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
@@ -56,6 +60,36 @@ export default function Chapter3() {
     return chartData.filter(d => d.crisis === 1).map(d => d.year);
   }, [chartData]);
 
+  const buildCompareLines = (metricKey, metricLabel) => {
+    if (!data || !compareMode || countries.length === 0) return null;
+    return countries.map((c, i) => {
+      const countryData = data[c];
+      if (!countryData) return null;
+      const offset = offsets[c] || 0;
+      let shiftedData;
+      if (metricKey === 'real_gdp_growth') {
+        shiftedData = countryData.years.map((yr, j) => {
+          const growth = j > 0 && countryData.real_gdp_pc[j] != null && countryData.real_gdp_pc[j - 1] != null
+            ? (countryData.real_gdp_pc[j] / countryData.real_gdp_pc[j - 1] - 1) * 100
+            : null;
+          return { year: yr + offset, [metricKey]: growth };
+        });
+      } else {
+        shiftedData = countryData.years.map((yr, j) => ({
+          year: yr + offset,
+          [metricKey]: countryData[metricKey][j],
+        }));
+      }
+      return {
+        key: metricKey,
+        label: `${c} ${offset !== 0 ? `(${offset > 0 ? '+' : ''}${offset}yr)` : ''}`,
+        color: getCompareColor(i),
+        highlight: true,
+        data: shiftedData,
+      };
+    }).filter(Boolean);
+  };
+
   if (loading) return <div className="py-20 text-center text-gray-400">Loading data...</div>;
 
   const narrativeSections = NARRATIVE.map((section, i) => (
@@ -68,12 +102,63 @@ export default function Chapter3() {
   const renderChart = (activeIndex) => {
     const mode = NARRATIVE[activeIndex]?.chartMode || 'debt_line';
 
+    // Compare mode
+    if (compareMode && countries.length > 0) {
+      let metricKey, title, yLabel;
+      if (mode === 'rev_exp') {
+        metricKey = 'revenue_gdp'; title = 'Government Revenue/GDP -- Compare'; yLabel = 'Share of GDP';
+      } else if (mode === 'r_minus_g') {
+        metricKey = 'real_gdp_growth'; title = 'Real GDP Growth -- Compare'; yLabel = 'Growth Rate (%)';
+      } else {
+        metricKey = 'debt_gdp'; title = 'Public Debt/GDP -- Compare'; yLabel = 'Debt / GDP Ratio';
+      }
+      const compareLines = buildCompareLines(metricKey, title) || [];
+
+      return (
+        <div className="w-full">
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(false)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
+          <ChartContainer
+            title={title}
+            subtitle="Overlay multiple countries (use offset to time-shift)"
+            source="JST Macrohistory Database R6"
+          >
+            {({ width, height }) => (
+              <LineChart
+                width={width}
+                height={height}
+                data={[]}
+                lines={compareLines}
+                yLabel={yLabel}
+              />
+            )}
+          </ChartContainer>
+        </div>
+      );
+    }
+
+    // Single country modes (unchanged)
     if (mode === 'rev_exp') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Government Revenue & Expenditure -- ${country}`}
             subtitle="As share of GDP"
@@ -99,9 +184,16 @@ export default function Chapter3() {
     if (mode === 'r_minus_g') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Real GDP Growth -- ${country}`}
             subtitle="Year-over-year growth in real GDP per capita"
@@ -130,9 +222,16 @@ export default function Chapter3() {
     if (mode === 'debt_with_crisis') {
       return (
         <div className="w-full">
-          <div className="mb-4">
-            <CountrySelector selected={country} onChange={setCountry} />
-          </div>
+          <CompareControls
+            compareMode={compareMode}
+            onToggleCompare={() => setCompareMode(true)}
+            countries={countries}
+            onCountriesChange={setCountries}
+            offsets={offsets}
+            onOffsetsChange={setOffsets}
+            singleCountry={country}
+            onSingleCountryChange={setCountry}
+          />
           <ChartContainer
             title={`Public Debt / GDP -- ${country}`}
             subtitle="Central government debt as share of GDP"
@@ -161,9 +260,16 @@ export default function Chapter3() {
     // debt_line (no crisis bands)
     return (
       <div className="w-full">
-        <div className="mb-4">
-          <CountrySelector selected={country} onChange={setCountry} />
-        </div>
+        <CompareControls
+          compareMode={compareMode}
+          onToggleCompare={() => setCompareMode(true)}
+          countries={countries}
+          onCountriesChange={setCountries}
+          offsets={offsets}
+          onOffsetsChange={setOffsets}
+          singleCountry={country}
+          onSingleCountryChange={setCountry}
+        />
         <ChartContainer
           title={`Public Debt / GDP -- ${country}`}
           subtitle="Central government debt as share of GDP"
