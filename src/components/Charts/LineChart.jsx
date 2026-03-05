@@ -168,7 +168,7 @@ export default function LineChart({
           if (val != null) {
             tooltipText.append('tspan')
               .attr('x', 8).attr('dy', 14).attr('fill', l.color)
-              .text(`${l.label}: ${val.toFixed(3)}`);
+              .text(`${l.label}: ${Math.abs(val) >= 100 ? val.toFixed(0) : Math.abs(val) >= 10 ? val.toFixed(1) : val.toFixed(2)}`);
           }
         });
 

@@ -40,11 +40,22 @@ export default function Chapter1() {
   const chartData = useMemo(() => {
     if (!data || !data[country]) return [];
     const c = data[country];
-    return c.years.map((yr, i) => ({
+    const raw = c.years.map((yr, i) => ({
       year: yr,
       credit_gdp: c.credit_gdp[i],
       crisis: c.crisis[i],
       house_prices: c.house_prices[i],
+    }));
+    // Min-max normalize both series to 0-100 range so they're visually comparable
+    const creditVals = raw.map(d => d.credit_gdp).filter(v => v != null);
+    const houseVals = raw.map(d => d.house_prices).filter(v => v != null);
+    const creditMin = Math.min(...creditVals), creditMax = Math.max(...creditVals);
+    const houseMin = Math.min(...houseVals), houseMax = Math.max(...houseVals);
+    const norm = (v, min, max) => (max > min && v != null) ? ((v - min) / (max - min)) * 100 : null;
+    return raw.map(d => ({
+      ...d,
+      credit_gdp_idx: norm(d.credit_gdp, creditMin, creditMax),
+      house_prices_idx: norm(d.house_prices, houseMin, houseMax),
     }));
   }, [data, country]);
 
@@ -53,15 +64,25 @@ export default function Chapter1() {
   }, [chartData]);
 
   // Build per-country shifted data for compare mode
-  const buildCompareLines = (metricKey, metricLabel) => {
+  const buildCompareLines = (metricKey, metricLabel, { indexed = false } = {}) => {
     if (!data || !compareMode || countries.length === 0) return null;
     return countries.map((c, i) => {
       const countryData = data[c];
       if (!countryData) return null;
       const offset = offsets[c] || 0;
+      const rawValues = countryData[metricKey];
+
+      let values = rawValues;
+      if (indexed) {
+        // Min-max normalize to 0-100 range
+        const valid = rawValues.filter(v => v != null);
+        const min = Math.min(...valid), max = Math.max(...valid);
+        values = rawValues.map(v => (max > min && v != null) ? ((v - min) / (max - min)) * 100 : null);
+      }
+
       const shiftedData = countryData.years.map((yr, j) => ({
         year: yr + offset,
-        [metricKey]: countryData[metricKey][j],
+        [metricKey]: values[j],
       }));
       return {
         key: metricKey,
@@ -87,16 +108,14 @@ export default function Chapter1() {
 
     // Compare mode: overlay multiple countries
     if (compareMode && countries.length > 0) {
-      const primaryKey = (mode === 'credit_house' || mode === 'house_with_crisis')
-        ? 'credit_gdp' : 'credit_gdp';
-      const compareLines = buildCompareLines('credit_gdp', 'Credit/GDP');
+      const isDual = mode === 'credit_house' || mode === 'house_with_crisis';
+      const compareLines = buildCompareLines('credit_gdp', 'Credit/GDP', { indexed: isDual });
 
       // For dual-metric modes, also show house prices
       let allLines = compareLines || [];
-      if (mode === 'credit_house' || mode === 'house_with_crisis') {
-        const houseLines = buildCompareLines('house_prices', 'House Prices');
+      if (isDual) {
+        const houseLines = buildCompareLines('house_prices', 'House Prices', { indexed: true });
         if (houseLines) {
-          // Use dashed style for house price lines
           allLines = [
             ...compareLines,
             ...houseLines.map(l => ({ ...l, label: `${l.label} (HP)` })),
@@ -104,9 +123,10 @@ export default function Chapter1() {
         }
       }
 
-      const title = mode === 'credit_house' || mode === 'house_with_crisis'
+      const title = isDual
         ? 'Credit & Housing -- Compare'
         : 'Private Credit / GDP -- Compare';
+      const compareYLabel = isDual ? 'Normalized (0-100)' : 'Credit / GDP Ratio';
 
       return (
         <div className="w-full">
@@ -131,7 +151,7 @@ export default function Chapter1() {
                 height={height}
                 data={[]}
                 lines={allLines}
-                yLabel="Credit / GDP Ratio"
+                yLabel={compareYLabel}
               />
             )}
           </ChartContainer>
@@ -140,28 +160,30 @@ export default function Chapter1() {
     }
 
     // Single country mode (unchanged)
+    const isDualSingle = mode === 'credit_house' || mode === 'house_with_crisis';
     const linesMap = {
       credit_line: [
         { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
       ],
       credit_house: [
-        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
-        { key: 'house_prices', label: 'House Prices', color: '#E69F00' },
+        { key: 'credit_gdp_idx', label: 'Credit/GDP (indexed)', color: '#0072B2', highlight: true },
+        { key: 'house_prices_idx', label: 'House Prices (indexed)', color: '#E69F00' },
       ],
       credit_with_crisis: [
         { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
       ],
       house_with_crisis: [
-        { key: 'credit_gdp', label: 'Credit/GDP', color: '#0072B2', highlight: true },
-        { key: 'house_prices', label: 'House Prices', color: '#E69F00' },
+        { key: 'credit_gdp_idx', label: 'Credit/GDP (indexed)', color: '#0072B2', highlight: true },
+        { key: 'house_prices_idx', label: 'House Prices (indexed)', color: '#E69F00' },
       ],
     };
 
     const showCrisis = mode === 'credit_with_crisis' || mode === 'house_with_crisis';
     const lines = linesMap[mode] || linesMap.credit_line;
+    const yLabel = isDualSingle ? 'Normalized (0 = min, 100 = max)' : 'Credit / GDP Ratio';
 
-    const subtitle = mode === 'credit_house' || mode === 'house_with_crisis'
-      ? 'Private credit ratio and nominal house price index'
+    const subtitle = isDualSingle
+      ? 'Both series normalized to 0-100 range for visual comparison'
       : 'Ratio of total loans to non-financial private sector to GDP';
 
     return (
@@ -188,7 +210,7 @@ export default function Chapter1() {
               data={chartData}
               lines={lines}
               crisisYears={showCrisis ? crisisYears : []}
-              yLabel="Credit / GDP Ratio"
+              yLabel={yLabel}
             />
           )}
         </ChartContainer>

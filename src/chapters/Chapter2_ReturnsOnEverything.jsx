@@ -51,14 +51,15 @@ export default function Chapter2() {
     const c = data[country];
     // Null out hyperinflation-era outliers (e.g. Germany 1922-23) for readable charts
     const clip = (v, threshold = 5) => (v != null && Math.abs(v) > threshold) ? null : v;
+    const pct = (v) => v != null ? v * 100 : null;
     return c.years.map((yr, i) => ({
       year: yr,
-      equity: clip(c.equity[i]),
-      housing: clip(c.housing[i]),
-      bonds: clip(c.bonds[i]),
-      bills: clip(c.bills[i]),
-      risky: clip(c.risky[i]),
-      safe: clip(c.safe[i]),
+      equity: pct(clip(c.equity[i])),
+      housing: pct(clip(c.housing[i])),
+      bonds: pct(clip(c.bonds[i])),
+      bills: pct(clip(c.bills[i])),
+      risky: pct(clip(c.risky[i])),
+      safe: pct(clip(c.safe[i])),
     }));
   }, [data, country]);
 
@@ -90,13 +91,14 @@ export default function Chapter2() {
   const buildCompareLines = (metricKey, metricLabel) => {
     if (!data || !compareMode || countries.length === 0) return null;
     const clip = (v, threshold = 5) => (v != null && Math.abs(v) > threshold) ? null : v;
+    const pct = (v) => v != null ? v * 100 : null;
     return countries.map((c, i) => {
       const countryData = data[c];
       if (!countryData) return null;
       const offset = offsets[c] || 0;
       const shiftedData = countryData.years.map((yr, j) => ({
         year: yr + offset,
-        [metricKey]: clip(countryData[metricKey][j]),
+        [metricKey]: pct(clip(countryData[metricKey][j])),
       }));
       return {
         key: metricKey,
@@ -136,7 +138,7 @@ export default function Chapter2() {
                 data={barData}
                 categoryKey="asset"
                 valueKeys={[
-                  { key: 'avgReturn', label: 'Avg Return (%)', color: '#0072B2' },
+                  { key: 'avgReturn', label: 'Median Return (%)', color: '#0072B2' },
                 ]}
                 yLabel="Median Annual Return (%)"
               />
@@ -184,7 +186,7 @@ export default function Chapter2() {
                 height={height}
                 data={[]}
                 lines={compareLines}
-                yLabel="Annual Return"
+                yLabel="Annual Return (%)"
               />
             )}
           </ChartContainer>
@@ -220,7 +222,7 @@ export default function Chapter2() {
                   { key: 'housing', label: 'Housing', color: ASSET_COLORS.housing, highlight: true },
                   { key: 'equity', label: 'Equities', color: ASSET_COLORS.equity },
                 ]}
-                yLabel="Annual Return"
+                yLabel="Annual Return (%)"
               />
             )}
           </ChartContainer>
@@ -255,7 +257,7 @@ export default function Chapter2() {
                   { key: 'risky', label: 'Risky Assets', color: '#0072B2', highlight: true },
                   { key: 'safe', label: 'Safe Assets', color: '#E69F00', highlight: true },
                 ]}
-                yLabel="Annual Return"
+                yLabel="Annual Return (%)"
               />
             )}
           </ChartContainer>
@@ -295,7 +297,7 @@ export default function Chapter2() {
                 { key: 'bonds', label: 'Bonds', color: ASSET_COLORS.bonds },
                 { key: 'bills', label: 'Bills', color: ASSET_COLORS.bills },
               ]}
-              yLabel="Annual Return"
+              yLabel="Annual Return (%)"
             />
           )}
         </ChartContainer>

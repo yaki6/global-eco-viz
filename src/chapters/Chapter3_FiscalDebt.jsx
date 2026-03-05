@@ -46,9 +46,9 @@ export default function Chapter3() {
         : null;
       return {
         year: yr,
-        debt_gdp: c.debt_gdp[i],
-        revenue_gdp: c.revenue_gdp[i],
-        expenditure_gdp: c.expenditure_gdp[i],
+        debt_gdp: c.debt_gdp[i] != null ? c.debt_gdp[i] * 100 : null,
+        revenue_gdp: c.revenue_gdp[i] != null ? c.revenue_gdp[i] * 100 : null,
+        expenditure_gdp: c.expenditure_gdp[i] != null ? c.expenditure_gdp[i] * 100 : null,
         real_gdp_pc: c.real_gdp_pc[i],
         real_gdp_growth: realGdpGrowth,
         crisis: c.crisis[i],
@@ -75,9 +75,12 @@ export default function Chapter3() {
           return { year: yr + offset, [metricKey]: growth };
         });
       } else {
+        const needsPercent = ['debt_gdp', 'revenue_gdp', 'expenditure_gdp'].includes(metricKey);
         shiftedData = countryData.years.map((yr, j) => ({
           year: yr + offset,
-          [metricKey]: countryData[metricKey][j],
+          [metricKey]: countryData[metricKey][j] != null
+            ? (needsPercent ? countryData[metricKey][j] * 100 : countryData[metricKey][j])
+            : null,
         }));
       }
       return {
@@ -106,11 +109,11 @@ export default function Chapter3() {
     if (compareMode && countries.length > 0) {
       let metricKey, title, yLabel;
       if (mode === 'rev_exp') {
-        metricKey = 'revenue_gdp'; title = 'Government Revenue/GDP -- Compare'; yLabel = 'Share of GDP';
+        metricKey = 'revenue_gdp'; title = 'Government Revenue/GDP -- Compare'; yLabel = 'Share of GDP (%)';
       } else if (mode === 'r_minus_g') {
         metricKey = 'real_gdp_growth'; title = 'Real GDP Growth -- Compare'; yLabel = 'Growth Rate (%)';
       } else {
-        metricKey = 'debt_gdp'; title = 'Public Debt/GDP -- Compare'; yLabel = 'Debt / GDP Ratio';
+        metricKey = 'debt_gdp'; title = 'Public Debt/GDP -- Compare'; yLabel = 'Debt / GDP (%)';
       }
       const compareLines = buildCompareLines(metricKey, title) || [];
 
@@ -170,10 +173,10 @@ export default function Chapter3() {
                 height={height}
                 data={chartData}
                 lines={[
-                  { key: 'revenue_gdp', label: 'Revenue/GDP', color: '#009E73', highlight: true },
-                  { key: 'expenditure_gdp', label: 'Expenditure/GDP', color: '#d35f5f', highlight: true },
+                  { key: 'revenue_gdp', label: 'Revenue/GDP (%)', color: '#009E73', highlight: true },
+                  { key: 'expenditure_gdp', label: 'Expenditure/GDP (%)', color: '#d35f5f', highlight: true },
                 ]}
-                yLabel="Share of GDP"
+                yLabel="Share of GDP (%)"
               />
             )}
           </ChartContainer>
@@ -195,8 +198,8 @@ export default function Chapter3() {
             onSingleCountryChange={setCountry}
           />
           <ChartContainer
-            title={`Real GDP Growth -- ${country}`}
-            subtitle="Year-over-year growth in real GDP per capita"
+            title={`Real GDP Growth (g) -- ${country}`}
+            subtitle="Year-over-year growth in real GDP per capita (interest rate data not available)"
             source="JST Macrohistory Database R6"
           >
             {({ width, height }) => (
@@ -243,10 +246,10 @@ export default function Chapter3() {
                 height={height}
                 data={chartData}
                 lines={[
-                  { key: 'debt_gdp', label: 'Debt/GDP', color: '#CC79A7', highlight: true },
+                  { key: 'debt_gdp', label: 'Debt/GDP (%)', color: '#CC79A7', highlight: true },
                 ]}
                 crisisYears={crisisYears}
-                yLabel="Debt / GDP Ratio"
+                yLabel="Debt / GDP (%)"
               />
             )}
           </ChartContainer>
@@ -281,9 +284,9 @@ export default function Chapter3() {
               height={height}
               data={chartData}
               lines={[
-                { key: 'debt_gdp', label: 'Debt/GDP', color: '#CC79A7', highlight: true },
+                { key: 'debt_gdp', label: 'Debt/GDP (%)', color: '#CC79A7', highlight: true },
               ]}
-              yLabel="Debt / GDP Ratio"
+              yLabel="Debt / GDP (%)"
             />
           )}
         </ChartContainer>
